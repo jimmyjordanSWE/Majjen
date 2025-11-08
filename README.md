@@ -1,2 +1,96 @@
-# majjen
-a generic cooperative scheduler in C
+# Majjen: A Generic Cooperative Scheduler in C99 (heavy WIP, including this readme)
+In a cooperative model, each task runs until it voluntarily yields control back to the scheduler. This makes Majjen well-suited for embedded systems, protocol handlers, and other applications where many tasks must be interleaved without the overhead of preemption.
+
+Majjen is simple by design. The scheduler iterates over a list of tasks, each represented by an `mj_task` struct. The scheduler manages the memory for the `mj_task` structs, but the user retains full ownership of the memory provided via the `user_state` pointer.
+
+```c
+// Each task is a function with this signature
+typedef void (*mj_task_func)(struct mj_task* task, void* user_state);
+
+typedef struct mj_task {
+    mj_task_func task_function;   // The user-provided function to run
+    void*        user_state;      // User-owned state for the task
+    // Internal scheduler fields below
+    TaskState    state_type;      // e.g. MJ_RUNNABLE, MJ_WAIT_TIMER
+    uint64_t     expiry_ns;       // When the task should resume (for sleep)
+    // Internal linkage pointers...
+} mj_task;
+```
+
+## Initializing the Scheduler
+Before creating tasks, you must initialize a scheduler:
+```c
+mj_scheduler* mj_scheduler_create(void);
+void mj_scheduler_destroy(mj_scheduler* scheduler);
+void mj_scheduler_run(mj_scheduler* scheduler);
+```
+
+Typical setup:
+```c
+mj_scheduler* my_scheduler = mj_scheduler_create();
+mj_create_task(my_scheduler, my_task_function, my_state_pointer);
+
+// mj_scheduler_run blocks until all tasks have exited
+mj_scheduler_run(my_scheduler);
+
+// Clean up all resources
+mj_scheduler_destroy(my_scheduler);
+```
+
+`mj_scheduler_run` enters the main scheduling loop and will continue running until all tasks have called `mj_task_exit()`.
+
+## Creating a Task
+
+Add a new task to the scheduler:
+```c
+mj_task* mj_create_task(mj_scheduler* scheduler, mj_task_func func, void* state);
+```
+Each task is provided with a `user_state` pointer, which your application code controls entirely.
+
+## Controlling a Task From Within
+
+A running task can control its own execution by calling a control function. The scheduler passes a pointer to the current `mj_task` as the first argument to your task function, which you can then use to control the task.
+
+To signal that a task has finished its work, it must call `mj_task_exit()`. The scheduler will then remove the task and free its associated resources on the next scheduling cycle.
+
+```c
+// Signals to the scheduler that the task is complete.
+void mj_task_exit(struct mj_task* task);
+```
+```c
+void my_final_task(struct mj_task* task, void* user_state) {
+    printf("Task finished, cleaning up.\n");
+    // Free any memory allocated in user_state if necessary
+
+    mj_task_exit(task); // Signal to the scheduler to remove this task
+}
+```
+
+A task that is not finished can voluntarily yield control to the scheduler, either for a set amount of time or until the next scheduling cycle.
+
+```c
+// Yield control and request to be woken up after a delay.
+void mj_task_sleep_ns(struct mj_task* task, uint64_t ns);
+
+// Yield control until the next scheduler cycle.
+void mj_task_yield(struct mj_task* task);
+```
+
+Example of a long-running task that yields:
+```c
+void my_periodic_task(struct mj_task* task, void* user_state) {
+    int* counter = (int*)user_state;
+    (*counter)++;
+
+    if (*counter >= 10) {
+        printf("Periodic task has run 10 times, now exiting.\n");
+        mj_task_exit(task);
+        return; // Exit after calling mj_task_exit
+    }
+
+    printf("Doing some work... run #%d\n", *counter);
+
+    // Sleep for 1 second before running again
+    mj_task_sleep_ns(task, 1000000000);
+}
+```
