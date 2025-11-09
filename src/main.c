@@ -6,38 +6,44 @@
 #include <stdint.h> // fixed-width integers
 #include <stdio.h>
 
-void task_1(mj_scheduler* sheduler, void* user_state) {
-    int* task_state = (int*)user_state;
-    (*task_state)++;
-    printf("\t\tTask_1 state: %d\n", *task_state);
+#define LOG(fmt, ...) fprintf(stderr, "[%s:%d %s] " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
-    if (*task_state == 15) {
-        printf("\t\tTask 1 done. Removing task.\n\n");
-        mj_sheduler_task_remove(sheduler);
+void increment(mj_scheduler* scheduler, void* user_state) {
+    int* task_state = (int*)user_state;
+    if (*task_state >= 12) {
+        LOG("State: %d. TASK DONE, REMOVING.", *task_state);
+        mj_scheduler_task_remove(scheduler);
+        return;
     }
+    LOG("State: %d", *task_state);
+    (*task_state)++;
 }
 
-void task_2(mj_scheduler* sheduler, void* user_state) {
+void decrement(mj_scheduler* scheduler, void* user_state) {
     int* task_state = (int*)user_state;
-    (*task_state)++;
-    printf("\t\t\t\tTask_2 state: %d\n", *task_state);
-
-    if (*task_state == 95) {
-        printf("\t\t\t\tTask 2 done. Removing task.\n\n");
-        mj_sheduler_task_remove(sheduler);
+    if (*task_state <= 96) {
+        LOG("State: %d. TASK DONE, REMOVING.", *task_state);
+        mj_scheduler_task_remove(scheduler);
+        return;
     }
+    LOG("State: %d", *task_state);
+    (*task_state)--;
 }
 
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
-    // Creating sheduler
-    mj_scheduler* sheduler = mj_scheduler_create();
-    if (sheduler == NULL) {
+    // Creating scheduler
+    mj_scheduler* scheduler = mj_scheduler_create();
+    if (scheduler == NULL) {
         perror("mj_scheduler_create");
         return EXIT_FAILURE;
     }
+
+    ////////////////
+    // TODO Dont allocate in main, the task functions must allocate and free their state themselves. They "save" their state in the scheduler anyways
+    /////////////
 
     // setup state for tasks 1
     int* task_1_state = malloc(sizeof(*task_1_state));
@@ -47,19 +53,22 @@ int main(int argc, char* argv[]) {
     int* task_2_state = malloc(sizeof(*task_2_state));
     *task_2_state = 100;
 
+    // setup state for tasks 3
+    int* task_3_state = malloc(sizeof(*task_3_state));
+    *task_3_state = 1000;
+
     // add tasks
-    mj_sheduler_task_add(sheduler, task_1, task_1_state);
-    mj_sheduler_task_add(sheduler, task_2, task_2_state);
+    mj_scheduler_task_add(scheduler, increment, task_1_state);
+    mj_scheduler_task_add(scheduler, decrement, task_2_state);
+    mj_scheduler_task_add(scheduler, increment, task_3_state);
 
     // run tasks, blocks until task list is empty
-    mj_scheduler_run(sheduler);
-    /*
-        // destroy does not check if tasks are left
-        int res = mj_scheduler_destroy(sheduler);
-        if (res == 0) {
-            return EXIT_SUCCESS;
-        } else {
-            perror("mj_scheduler_destroy");
-            return EXIT_FAILURE;
-        } */
+    mj_scheduler_run(scheduler);
+
+    // Note that state is still here.
+    // But we only ever end up here at app shutdown.
+    // so we must free() state when we remove tasks.
+    printf("\nremaning state 1: %d", *task_1_state);
+    printf("\nremaning state 2: %d", *task_2_state);
+    printf("\nremaning state 3: %d\n", *task_3_state);
 }

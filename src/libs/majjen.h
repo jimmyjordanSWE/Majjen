@@ -5,7 +5,7 @@
 #include <stdint.h>  // fixed-width integer types (int32_t, uint8_t, etc.)
 #include <stdlib.h>  // malloc, free, and general utilities
 
-#define MAX_TASKS 3
+#define MAX_TASKS 5
 
 // TODO make opaque
 typedef struct mj_task mj_task;
@@ -21,7 +21,7 @@ typedef struct mj_task {
 
 typedef struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
-    mj_task* current_task;
+    mj_task** current_task; // must be pp so we dont have to search list to remove current tasks
     size_t task_count;
 } mj_scheduler;
 
@@ -39,11 +39,7 @@ mj_scheduler* mj_scheduler_create();
 void mj_scheduler_run(mj_scheduler* sheduler);
 
 // appends a task to the end of the list ( so that newer tasks gets run after older on each loop )
-int mj_sheduler_task_add(mj_scheduler* sheduler, mj_task_fn* task_fn, void* user_state);
+int mj_scheduler_task_add(mj_scheduler* sheduler, mj_task_fn* task_fn, void* user_state);
 
-// removes task in reverse order from add, so youngest task gets removed first. LIOFO.
-// TODO currently just removes the highest index task, returns the index of the removed task, so 0 == empty list. <0 error.
-int mj_sheduler_task_remove();
-
-// returns tasks left in sheduler
-int mj_sheduler_task_remove_current();
+// usable from withing task func, removes current task
+int mj_scheduler_task_remove(mj_scheduler* scheduler);

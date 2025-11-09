@@ -7,35 +7,45 @@
 #include <stdio.h>
 #include <time.h>
 
+/* hidden loop counter (file scope) */
+static size_t mj_loop_count = 0;
+
 void mj_scheduler_run(mj_scheduler* scheduler) {
     if (scheduler == NULL) {
         printf("Sheduler is NULL\n");
         return;
     }
     if (scheduler->task_count == 0) {
-        printf("Cant run with zero tasks.");
+        printf("Cant run with zero tasks.\n");
         return;
     }
     // there are tasks, run them
     while (scheduler->task_count > 0) {
-        for (int i = scheduler->task_count - 1; i >= 0; i--) {
+        mj_loop_count++;
+        printf("\nRUNNING TASKS LOOP NR: %zu\n", mj_loop_count);
+        // note runs oldest task first, change for linked list
+        for (int i = MAX_TASKS - 1; i >= 0; i--) {
+            // Skipto next if no task in slot
+            if (scheduler->task_list[i] == NULL) { continue; }
+
             // get the function and the state
-            //// TODO segfault here
             mj_task_fn* task = scheduler->task_list[i]->task_func;
             void* user_data = scheduler->task_list[i]->user_data;
 
-            if (task != NULL) {
-                /* sleep 100 ms */
-                struct timespec ts = {.tv_sec = 0, .tv_nsec = 100 * 1000 * 1000};
-                nanosleep(&ts, NULL);
+            /* sleep 50 ms */
+            struct timespec ts = {.tv_sec = 0, .tv_nsec = 50 * 1000 * 1000};
+            nanosleep(&ts, NULL);
 
-                // set current function
-                scheduler->current_task = scheduler->task_list[i];
+            // set current function
+            scheduler->current_task = &scheduler->task_list[i];
 
-                // call user function with user state
-                task(scheduler, user_data);
-                printf("running function at index %d\n", i);
-            }
+            // call user function with user state
+            printf("running function at index %d: ", i);
+            fflush(stdout);
+            task(scheduler, user_data);
+
+            // reset current function, should only be availible from the task that just ran
+            scheduler->current_task = NULL;
         }
     }
 }
@@ -71,8 +81,8 @@ int mj_sheduler_destroy(mj_scheduler* shed) {
     TASK MANAGMENT
 */
 
-int mj_sheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state) {
-    // Sheduler is full
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state) {
+    // Scheduler is full
     if (scheduler->task_count >= MAX_TASKS) {
         printf("Task list is full, can not add more tasks. (%zu)\n,", scheduler->task_count);
         return -1;
@@ -94,8 +104,26 @@ int mj_sheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* use
     return -1;
 }
 
-int mj_sheduler_task_remove() {
-    // TODO
+int mj_scheduler_task_remove(mj_scheduler* scheduler) {
+    if (scheduler == NULL || scheduler->current_task == NULL || *scheduler->current_task == NULL) return -1;
+
+    mj_task* task = *scheduler->current_task;
+
+    // Free user_data first
+    free(task->user_data);
+    task->user_data = NULL;
+
+    // Free the task struct itself
+    free(task);
+
+    // Null out the slot in task_list
+    *scheduler->current_task = NULL;
+
+    // Null out the scheduler’s current_task pointer
+    scheduler->current_task = NULL;
+
+    // Decrement task count safely
+    if (scheduler->task_count > 0) scheduler->task_count--;
 
     return 0;
 }
