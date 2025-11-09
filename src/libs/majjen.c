@@ -12,7 +12,7 @@ static size_t mj_loop_count = 0;
 
 void mj_scheduler_run(mj_scheduler* scheduler) {
     if (scheduler == NULL) {
-        printf("Sheduler is NULL\n");
+        printf("scheduler is NULL\n");
         return;
     }
     if (scheduler->task_count == 0) {
@@ -63,7 +63,7 @@ mj_scheduler* mj_scheduler_create() {
     return shed;
 }
 
-int mj_sheduler_destroy(mj_scheduler* shed) {
+int mj_scheduler_destroy(mj_scheduler* shed) {
     if (shed == NULL) {
         errno = EINVAL;
         return -1;

@@ -12,7 +12,7 @@ typedef struct mj_task mj_task;
 typedef struct mj_scheduler mj_scheduler;
 
 // task callback prototype
-typedef void(mj_task_fn)(mj_scheduler* sheduler, void* user_data);
+typedef void(mj_task_fn)(mj_scheduler* scheduler, void* user_data);
 
 typedef struct mj_task {
     mj_task_fn* task_func;
@@ -35,11 +35,11 @@ mj_scheduler* mj_scheduler_create();
 /*
     task management
 */
-// Start sheduler, blocks until no tasks left
-void mj_scheduler_run(mj_scheduler* sheduler);
+// Start scheduler, blocks until no tasks left
+void mj_scheduler_run(mj_scheduler* scheduler);
 
 // appends a task to the end of the list ( so that newer tasks gets run after older on each loop )
-int mj_scheduler_task_add(mj_scheduler* sheduler, mj_task_fn* task_fn, void* user_state);
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state);
 
 // usable from withing task func, removes current task
 int mj_scheduler_task_remove(mj_scheduler* scheduler);
