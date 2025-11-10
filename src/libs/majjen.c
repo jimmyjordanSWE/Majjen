@@ -8,6 +8,17 @@
 #include <time.h>
 #include <unistd.h>
 
+typedef struct mj_task {
+    mj_task_fn* task;
+    void* state;
+} mj_task;
+
+typedef struct mj_scheduler {
+    mj_task* task_list[MAX_TASKS];
+    mj_task** current_task; // must be pp so we dont have to search list to remove current task
+    size_t task_count;      // How many tasks are in the list
+} mj_scheduler;
+
 /* hidden loop counter (file scope) */
 static size_t mj_loop_count = 0;
 

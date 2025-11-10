@@ -8,23 +8,11 @@
 #define MAX_TASKS 5000
 #define ITERATION_SLEEP_MS 8
 
-// TODO make opaque
 typedef struct mj_task mj_task;
 typedef struct mj_scheduler mj_scheduler;
 
 // task callback prototype
 typedef void(mj_task_fn)(mj_scheduler* scheduler, void* state);
-
-typedef struct mj_task {
-    mj_task_fn* task;
-    void* state;
-} mj_task;
-
-typedef struct mj_scheduler {
-    mj_task* task_list[MAX_TASKS];
-    mj_task** current_task; // must be pp so we dont have to search list to remove current task
-    size_t task_count;      // How many tasks are in the list
-} mj_scheduler;
 
 /*
     Create / destroy
