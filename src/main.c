@@ -5,34 +5,53 @@
 #include <stddef.h> // size_t, NULL
 #include <stdint.h> // fixed-width integers
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define LOG(fmt, ...) fprintf(stderr, "[%s:%d %s] " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
-void increment(mj_scheduler* scheduler, void* user_state) {
+// utility to make a random int in a range
+int rand_range(int min, int max) {
+    return min + rand() % (max - min + 1);
+}
+
+/*
+    TASK CALLBACK
+    This is run inside the scheduler.State is automatically freed by mj_scheduler_task_remove();
+    Naming is not mandatory. Just think its easier if everything that goes into majjen has "mj_" prefix.
+    Especially since we can pass in callbacks from anywhere in the code to it.
+*/
+void mj_cb_count_to_ten(mj_scheduler* scheduler, void* user_state) {
+    // get  the state pointer
     int* task_state = (int*)user_state;
-    if (*task_state >= 12) {
-        LOG("State: %d. TASK DONE, REMOVING.", *task_state);
+    // are we done?
+    if (*task_state >= 10) {
+        LOG("State: %d. TASK DONE. TASK REMOVED.", *task_state);
+        // remove this task from scheduler
         mj_scheduler_task_remove(scheduler);
         return;
     }
     LOG("State: %d", *task_state);
     (*task_state)++;
 }
+/*
+    TASK SETUP
+    Inits and mallocs state then sends state and callback function to scheduler
+*/
+void mj_add_task_count_up(mj_scheduler* scheduler, int count) {
+    // Instance state is created here
+    int* state = malloc(sizeof(*state)); // mallocID: sdgfnoui34sdfiuh23dws
+    *state = count;
 
-void decrement(mj_scheduler* scheduler, void* user_state) {
-    int* task_state = (int*)user_state;
-    if (*task_state <= 96) {
-        LOG("State: %d. TASK DONE, REMOVING.", *task_state);
-        mj_scheduler_task_remove(scheduler);
-        return;
-    }
-    LOG("State: %d", *task_state);
-    (*task_state)--;
+    // State is sent with task to scheduler. Task MUST free state when done since instance can never return here again.
+    mj_scheduler_task_add(scheduler, mj_cb_count_to_ten, state);
 }
 
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
+    // seed for random number
+    srand((unsigned)time(NULL));
 
     // Creating scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
@@ -41,34 +60,9 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    ////////////////
-    // TODO Dont allocate in main, the task functions must allocate and free their state themselves. They "save" their state in the scheduler anyways
-    /////////////
-
-    // setup state for tasks 1
-    int* task_1_state = malloc(sizeof(*task_1_state));
-    *task_1_state = 10;
-
-    // setup state for tasks 2
-    int* task_2_state = malloc(sizeof(*task_2_state));
-    *task_2_state = 100;
-
-    // setup state for tasks 3
-    int* task_3_state = malloc(sizeof(*task_3_state));
-    *task_3_state = 1000;
-
-    // add tasks
-    mj_scheduler_task_add(scheduler, increment, task_1_state);
-    mj_scheduler_task_add(scheduler, decrement, task_2_state);
-    mj_scheduler_task_add(scheduler, increment, task_3_state);
+    // add maximum amount of tasks
+    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-10, 10)); }
 
     // run tasks, blocks until task list is empty
     mj_scheduler_run(scheduler);
-
-    // Note that state is still here.
-    // But we only ever end up here at app shutdown.
-    // so we must free() state when we remove tasks.
-    printf("\nremaning state 1: %d", *task_1_state);
-    printf("\nremaning state 2: %d", *task_2_state);
-    printf("\nremaning state 3: %d\n", *task_3_state);
 }

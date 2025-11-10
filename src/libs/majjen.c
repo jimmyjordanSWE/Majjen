@@ -6,11 +6,13 @@
 #include <errno.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
 /* hidden loop counter (file scope) */
 static size_t mj_loop_count = 0;
 
 void mj_scheduler_run(mj_scheduler* scheduler) {
+
     if (scheduler == NULL) {
         printf("scheduler is NULL\n");
         return;
@@ -29,12 +31,12 @@ void mj_scheduler_run(mj_scheduler* scheduler) {
             if (scheduler->task_list[i] == NULL) { continue; }
 
             // get the function and the state
-            mj_task_fn* task = scheduler->task_list[i]->task_func;
-            void* user_data = scheduler->task_list[i]->user_data;
+            mj_task_fn* task = scheduler->task_list[i]->task;
+            void* state = scheduler->task_list[i]->state;
 
-            /* sleep 50 ms */
-            struct timespec ts = {.tv_sec = 0, .tv_nsec = 50 * 1000 * 1000};
-            nanosleep(&ts, NULL);
+            /* sleep a bit so its not so fast */
+            /*             struct timespec ts = {.tv_sec = 0, .tv_nsec = ITERATION_SLEEP_MS * 1000 * 1000};
+                        nanosleep(&ts, NULL); */
 
             // set current function
             scheduler->current_task = &scheduler->task_list[i];
@@ -42,7 +44,7 @@ void mj_scheduler_run(mj_scheduler* scheduler) {
             // call user function with user state
             printf("running function at index %d: ", i);
             fflush(stdout);
-            task(scheduler, user_data);
+            task(scheduler, state);
 
             // reset current function, should only be availible from the task that just ran
             scheduler->current_task = NULL;
@@ -80,17 +82,18 @@ int mj_scheduler_destroy(mj_scheduler* shed) {
 /*
     TASK MANAGMENT
 */
-
-int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state) {
+// add task to scheduler. Mallocs a new task to contain task_fn and state pointers.
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state) {
     // Scheduler is full
     if (scheduler->task_count >= MAX_TASKS) {
         printf("Task list is full, can not add more tasks. (%zu)\n,", scheduler->task_count);
         return -1;
     }
 
+    // Create the new task
     mj_task* new_task = malloc(sizeof(*new_task));
-    new_task->task_func = task_fn;
-    new_task->user_data = user_state;
+    new_task->task = task;
+    new_task->state = state;
 
     // Find empty spot in task list
     for (int i = 0; i < MAX_TASKS; i++) {
@@ -109,11 +112,11 @@ int mj_scheduler_task_remove(mj_scheduler* scheduler) {
 
     mj_task* task = *scheduler->current_task;
 
-    // Free user_data first
-    free(task->user_data);
-    task->user_data = NULL;
+    // Free state first ( this comes from the callbacks instance )
+    free(task->state);
+    task->state = NULL;
 
-    // Free the task struct itself
+    // Free the task struct itself ( this was created by majjen when task was added to scheduler )
     free(task);
 
     // Null out the slot in task_list
