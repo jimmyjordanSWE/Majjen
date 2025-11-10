@@ -46,8 +46,8 @@ void mj_scheduler_run(mj_scheduler* scheduler) {
             void* state = scheduler->task_list[i]->state;
 
             /* sleep a bit so its not so fast */
-            /*             struct timespec ts = {.tv_sec = 0, .tv_nsec = ITERATION_SLEEP_MS * 1000 * 1000};
-                        nanosleep(&ts, NULL); */
+            struct timespec ts = {.tv_sec = 0, .tv_nsec = ITERATION_SLEEP_MS * 1000 * 1000};
+            nanosleep(&ts, NULL);
 
             // set current function
             scheduler->current_task = &scheduler->task_list[i];

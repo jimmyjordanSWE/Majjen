@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -g -Wall -Wextra -std=c99 -Iinclude -Isrc/libs -I. -MMD -MP -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation
+CFLAGS := -g -Wall -Wextra -std=c99 -Iinclude -Isrc/libs -I.-fsanitize=address -fsanitize=undefined -MMD -MP -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation
 LFLAGS :=
 
 # --- Configuration ---

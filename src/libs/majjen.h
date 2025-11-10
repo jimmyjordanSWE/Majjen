@@ -5,8 +5,8 @@
 #include <stdint.h>  // fixed-width integer types (int32_t, uint8_t, etc.)
 #include <stdlib.h>  // malloc, free, and general utilities
 
-#define MAX_TASKS 5000
-#define ITERATION_SLEEP_MS 8
+#define MAX_TASKS 10
+#define ITERATION_SLEEP_MS 200
 
 typedef struct mj_task mj_task;
 typedef struct mj_scheduler mj_scheduler;
