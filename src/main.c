@@ -1,14 +1,8 @@
 #include "majjen.h"
 #include <errno.h>
-#include <malloc.h>
-#include <stdbool.h>
-#include <stddef.h> // size_t, NULL
-#include <stdint.h> // fixed-width integers
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
-#define LOG(fmt, ...) fprintf(stderr, "[%s:%d %s] " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 // utility to make a random int in a range
 int rand_range(int min, int max) {
@@ -24,48 +18,55 @@ int rand_range(int min, int max) {
 void mj_cb_count_to_ten(mj_scheduler* scheduler, void* user_state) {
     // get  the state pointer
     int* task_state = (int*)user_state;
+
     // are we done?
     if (*task_state >= 10) {
-        // LOG("State: %d. TASK DONE. TASK REMOVED.", *task_state);
         //  remove this task from scheduler
-        mj_scheduler_task_remove(scheduler);
+        mj_scheduler_task_remove_current(scheduler);
         return;
     }
-    // LOG("State: %d", *task_state);
+
+    // keep counting
     (*task_state)++;
 }
 
 /*
     TASK SETUP
-    Inits and mallocs state then sends state and callback function to scheduler
+    Inits and mallocs state then sends state and callback function to scheduler.
+    This can also be done in the callback itself by conditionally malloc:ing if state == NULL.
+    WARNING:
+    Risk of dangling pointer. Dont create the state pointer outside of a dedicated setup function or inside the task itself.
+    We want to create the pointer in a scope that is destroyed after task is added.
 */
 void mj_add_task_count_up(mj_scheduler* scheduler, int count) {
     // Instance state is created here
     int* state = malloc(sizeof(*state));
     *state = count;
 
-    // State is sent with task to scheduler. Task MUST free state when done since instance can never return here again.
+    // State and task is sent to scheduler. State is automatically freed and NULL:ed when scheduler removes task.
     mj_scheduler_task_add(scheduler, mj_cb_count_to_ten, state);
 }
 
 int main() {
-
-    srand((unsigned)time(NULL));
+    srand((unsigned)time(NULL)); // seed random nr generator
 
     // Create scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
+
+    // check for errno
     if (scheduler == NULL) {
-        //    perror("mj_scheduler_create");
+        perror("mj_scheduler_create");
         return EXIT_FAILURE;
     }
 
     // add maximum amount of tasks
-    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-10, 10)); }
+    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(5, 10)); }
 
     // run tasks, blocks until task list is empty
     mj_scheduler_run(scheduler);
 
-    mj_scheduler_destroy(scheduler);
+    // free resources and set pointer to NULL
+    mj_scheduler_destroy(&scheduler);
 
     return 0;
 }

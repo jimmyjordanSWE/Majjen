@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <time.h>
 
-#define SPEED_OF_LIGHT 299792458.0
-
 typedef struct {
     struct timespec start;
     struct timespec end;

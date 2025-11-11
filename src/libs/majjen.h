@@ -1,13 +1,9 @@
-#pragma once
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-#define CLOCK_TIMER_IMPLEMENTATION // For timer.h
-#define MAX_TASKS 5                // sets the main task array size
-#define ITERATION_SLEEP_MS 200     // just used when testing so printf isnt so fast
+#define MAX_TASKS 1000
 
 // Forward declarations of opaque structs
 typedef struct mj_task mj_task;
@@ -19,21 +15,26 @@ typedef void(mj_task_fn)(mj_scheduler* scheduler, void* state);
 /*
     Create / Destroy
 */
-// Create a scheduler instance
+
+// Create a scheduler. Allocates memory for the scheduler struct.
+// returns NULL error.
 mj_scheduler* mj_scheduler_create();
-void mj_scheduler_destroy(mj_scheduler* scheduler);
+int mj_scheduler_destroy(mj_scheduler** scheduler);
 
 /*
     Scheduler management
 */
-// Start scheduler (blocks). Returns when no tasks are left.
-void mj_scheduler_run(mj_scheduler* scheduler);
+
+// Start scheduler. Returns when no tasks are left.
+int mj_scheduler_run(mj_scheduler* scheduler);
 
 /*
     Task management
 */
-// Append a task to the end of the list (newer tasks run after older ones each loop).
+
+// Add a task. Mallocs a new mj_task.
+// return -1 if task_list[] is full
 int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state);
 
-// Usable from within a task callback; removes the current task.
-int mj_scheduler_task_remove(mj_scheduler* scheduler);
+// Only usable from within a task callback, removes the current task.
+int mj_scheduler_task_remove_current(mj_scheduler* scheduler);
