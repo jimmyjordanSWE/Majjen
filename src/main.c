@@ -17,7 +17,7 @@ int rand_range(int min, int max) {
 
 /*
     TASK CALLBACK
-    This is run inside the scheduler.State is automatically freed by mj_scheduler_task_remove();
+    This is run inside the scheduler. State is automatically freed by mj_scheduler_task_remove();
     Naming is not mandatory. Just think its easier if everything that goes into majjen has "mj_" prefix.
     Especially since we can pass in callbacks from anywhere in the code to it.
 */
@@ -41,20 +41,18 @@ void mj_cb_count_to_ten(mj_scheduler* scheduler, void* user_state) {
 */
 void mj_add_task_count_up(mj_scheduler* scheduler, int count) {
     // Instance state is created here
-    int* state = malloc(sizeof(*state)); // mallocID: sdgfnoui34sdfiuh23dws
+    int* state = malloc(sizeof(*state));
     *state = count;
 
     // State is sent with task to scheduler. Task MUST free state when done since instance can never return here again.
     mj_scheduler_task_add(scheduler, mj_cb_count_to_ten, state);
 }
 
-int main(int argc, char* argv[]) {
-    (void)argc;
-    (void)argv;
-    // seed for random number
+int main() {
+
     srand((unsigned)time(NULL));
 
-    // Creating scheduler
+    // Create scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
     if (scheduler == NULL) {
         //    perror("mj_scheduler_create");
@@ -66,4 +64,7 @@ int main(int argc, char* argv[]) {
 
     // run tasks, blocks until task list is empty
     mj_scheduler_run(scheduler);
+
+    // TODO move this to proper destroy funciton in majjen.c
+    free(scheduler);
 }
