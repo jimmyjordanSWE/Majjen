@@ -64,19 +64,6 @@ mj_scheduler* mj_scheduler_create() {
     return shed;
 }
 
-void mj_scheduler_destroy(mj_scheduler* shed) {
-    if (shed == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-    // remove all task pointers
-    while (shed->task_count) { mj_scheduler_remove_task(shed->task_list[shed->task_count - 1]); }
-
-    free(shed);
-    shed = NULL;
-    return;
-}
-
 /*
     TASK MANAGMENT
 */
@@ -127,4 +114,17 @@ int mj_scheduler_task_remove(mj_scheduler* scheduler) {
     if (scheduler->task_count > 0) scheduler->task_count--;
 
     return 0;
+}
+
+void mj_scheduler_destroy(mj_scheduler* shed) {
+    /*     if (shed == NULL) {
+            errno = EINVAL;
+            return -1;
+        }
+        // remove all task pointers
+        while (shed->task_count) { mj_scheduler_task_remove(shed->task_list[shed->task_count - 1]); }
+
+        free(shed);
+        shed = NULL; */
+    return;
 }
