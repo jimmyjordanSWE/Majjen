@@ -60,11 +60,12 @@ int main() {
     }
 
     // add maximum amount of tasks
-    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-100, 10)); }
+    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-10, 10)); }
 
     // run tasks, blocks until task list is empty
     mj_scheduler_run(scheduler);
 
-    // TODO move this to proper destroy funciton in majjen.c
-    free(scheduler);
+    mj_scheduler_destroy(scheduler);
+
+    return 0;
 }

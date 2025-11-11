@@ -6,8 +6,8 @@
 #include <stdlib.h>
 
 #define CLOCK_TIMER_IMPLEMENTATION // For timer.h
-#define MAX_TASKS 100000           // sets the main task array size
-#define ITERATION_SLEEP_MS 8       // just used when testing so printf isnt so fast
+#define MAX_TASKS 5                // sets the main task array size
+#define ITERATION_SLEEP_MS 200     // just used when testing so printf isnt so fast
 
 // Forward declarations of opaque structs
 typedef struct mj_task mj_task;
@@ -21,7 +21,7 @@ typedef void(mj_task_fn)(mj_scheduler* scheduler, void* state);
 */
 // Create a scheduler instance
 mj_scheduler* mj_scheduler_create();
-// int mj_scheduler_destroy(mj_scheduler* scheduler);
+void mj_scheduler_destroy(mj_scheduler* scheduler);
 
 /*
     Scheduler management
