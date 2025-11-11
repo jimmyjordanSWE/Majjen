@@ -26,14 +26,15 @@ void mj_cb_count_to_ten(mj_scheduler* scheduler, void* user_state) {
     int* task_state = (int*)user_state;
     // are we done?
     if (*task_state >= 10) {
-        LOG("State: %d. TASK DONE. TASK REMOVED.", *task_state);
-        // remove this task from scheduler
+        // LOG("State: %d. TASK DONE. TASK REMOVED.", *task_state);
+        //  remove this task from scheduler
         mj_scheduler_task_remove(scheduler);
         return;
     }
-    LOG("State: %d", *task_state);
+    // LOG("State: %d", *task_state);
     (*task_state)++;
 }
+
 /*
     TASK SETUP
     Inits and mallocs state then sends state and callback function to scheduler
@@ -56,12 +57,12 @@ int main(int argc, char* argv[]) {
     // Creating scheduler
     mj_scheduler* scheduler = mj_scheduler_create();
     if (scheduler == NULL) {
-        perror("mj_scheduler_create");
+        //    perror("mj_scheduler_create");
         return EXIT_FAILURE;
     }
 
     // add maximum amount of tasks
-    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-10, 10)); }
+    for (int i = 0; i < MAX_TASKS; i++) { mj_add_task_count_up(scheduler, rand_range(-100, 10)); }
 
     // run tasks, blocks until task list is empty
     mj_scheduler_run(scheduler);

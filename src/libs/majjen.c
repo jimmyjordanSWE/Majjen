@@ -1,8 +1,5 @@
-
-/* expose nanosleep / struct timespec on POSIX */
-#define _POSIX_C_SOURCE 199309L
-
 #include "majjen.h"
+#include "timer.h"
 #include <errno.h>
 #include <stdio.h>
 #include <time.h>
@@ -32,11 +29,24 @@ void mj_scheduler_run(mj_scheduler* scheduler) {
         printf("Cant run with zero tasks.\n");
         return;
     }
+
+    // setup timers
+    clock_timer_t sched_timer;
+    clock_timer_init(&sched_timer);
+    int64_t start_time = 0;
+    int64_t end_time = 0;
+    int64_t elapsed = 0;
+    int64_t total = 0;
+
     // there are tasks, run them
+    clock_timer_start(&sched_timer);
+    printf("Running with %d tasks:\n", MAX_TASKS);
     while (scheduler->task_count > 0) {
+        start_time = clock_timer_elapsed_ns(&sched_timer);
+
         mj_loop_count++;
-        printf("\nRUNNING TASKS LOOP NR: %zu\n", mj_loop_count);
-        // note runs oldest task first, change for linked list
+        // printf("\nRUNNING TASKS LOOP NR: %zu\n", mj_loop_count);
+        //  note runs oldest task first, change for linked list
         for (int i = MAX_TASKS - 1; i >= 0; i--) {
             // Skipto next if no task in slot
             if (scheduler->task_list[i] == NULL) { continue; }
@@ -45,22 +55,29 @@ void mj_scheduler_run(mj_scheduler* scheduler) {
             mj_task_fn* task = scheduler->task_list[i]->task;
             void* state = scheduler->task_list[i]->state;
 
-            /* sleep a bit so its not so fast */
-            /*             struct timespec ts = {.tv_sec = 0, .tv_nsec = ITERATION_SLEEP_MS * 1000 * 1000};
-                        nanosleep(&ts, NULL); */
-
             // set current function
             scheduler->current_task = &scheduler->task_list[i];
 
             // call user function with user state
-            printf("running function at index %d: ", i);
+            // printf("running function at index %d: ", i);
             fflush(stdout);
             task(scheduler, state);
 
             // reset current function, should only be availible from the task that just ran
             scheduler->current_task = NULL;
         }
+
+        end_time = clock_timer_elapsed_ns(&sched_timer);
+        elapsed = end_time;
+        total += elapsed;
+
+        // Convert nanoseconds to seconds and multiply by speed of light
+        double light_traveled_meters = SPEED_OF_LIGHT * elapsed * 1e-9;
+        printf("LOOP: %5.0ld, ELAPSED TIME: %6.3f ms, light traveled %6.1f km\n", mj_loop_count, (double)elapsed * 1e-6, light_traveled_meters / 1000);
+        fflush(stdout);
     }
+    printf("TOTAL SCHEDULER LOOPS: %ld\nTOTAL TIME: %6.3f ms\n", mj_loop_count, (double)total * 1e-6);
+    printf("AVERAGE LOOP TIME: %6.6ld ns\n", total / mj_loop_count);
 }
 
 /*

@@ -1,17 +1,18 @@
 CC := gcc
-CFLAGS := -g -Wall -Wextra -std=c99 -Iinclude -Isrc/libs -I. -MMD -MP -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation
+CFLAGS := -D_POSIX_C_SOURCE=200809L -g -Wall -Wextra -std=c99 \
+          -Iinclude -Isrc/libs -Isrc/utils -I. \
+          -MMD -MP -Wno-unused-parameter -Wno-unused-function -Wno-format-truncation
 LFLAGS :=
 
 # --- Configuration ---
 BUILD_DIR := build
 BIN := app
 
-# --- Application Source Discovery ---
+# --- Application Source Discovery (recursive) ---
 SRC := $(shell find src -name '*.c')
-OBJ := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(filter src/%.c,$(SRC)))
+OBJ := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(SRC))
 
 # --- Dependency Files ---
-# Only includes dependencies for application objects
 DEP := $(OBJ:.o=.d)
 
 .PHONY: all run clean
@@ -27,6 +28,7 @@ $(BIN): $(OBJ)
 	@echo "LINKING all object files into $@"
 	$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 
+# Match any .c file in any subdirectory of src/
 $(BUILD_DIR)/%.o: src/%.c
 	@mkdir -p $(@D)
 	@echo "COMPILING $<"
@@ -45,5 +47,3 @@ clean:
 
 # Include automatically generated dependency files
 -include $(DEP)
-
-

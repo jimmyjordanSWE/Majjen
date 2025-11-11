@@ -5,8 +5,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define MAX_TASKS 5000       // sets the main task array size
-#define ITERATION_SLEEP_MS 8 // just used when testing so printf isnt so fast
+#define CLOCK_TIMER_IMPLEMENTATION // For timer.h
+#define MAX_TASKS 100000           // sets the main task array size
+#define ITERATION_SLEEP_MS 8       // just used when testing so printf isnt so fast
 
 // Forward declarations of opaque structs
 typedef struct mj_task mj_task;
