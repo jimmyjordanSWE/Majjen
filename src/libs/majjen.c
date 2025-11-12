@@ -58,7 +58,7 @@ mj_scheduler* mj_scheduler_create(void) {
 
     // Init all fields
     scheduler->current_task = NULL;
-    scheduler->task_count = NULL;
+    scheduler->task_count = 0;
 
     // TODO if we stick with fixed array preallocate all slots here during init
     return scheduler;
