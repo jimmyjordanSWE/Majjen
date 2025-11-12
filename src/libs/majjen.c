@@ -55,6 +55,11 @@ mj_scheduler* mj_scheduler_create(void) {
         errno = ENOMEM;
         return NULL;
     }
+
+    // Init all fields
+    scheduler->current_task = NULL;
+    scheduler->task_count = NULL;
+
     // TODO if we stick with fixed array preallocate all slots here during init
     return scheduler;
 }
