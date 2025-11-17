@@ -1,5 +1,7 @@
 # Majjen
 
+**(readme out of date, will be updated soon. Check demo_task.c and .h for now)**
+
 A tiny cooperative scheduler in C99. It lets you register simple task callbacks with user-provided state and runs them in a round‑robin loop until each task removes itself.
 
 ## Features

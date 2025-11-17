@@ -1,13 +1,12 @@
 #include "majjen.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-
-typedef struct mj_task {
-    mj_task_fn* task;
-    void* state;
-} mj_task;
 
 typedef struct mj_scheduler {
     mj_task* task_list[MAX_TASKS];
@@ -20,28 +19,29 @@ int mj_scheduler_run(mj_scheduler* scheduler) {
         errno = EINVAL;
         return -1;
     }
-    if (scheduler->task_count <= 0) {
-        errno = EINVAL;
-        return -1;
-    }
+    mj_task** current_task_slot = NULL;
+    mj_task* current_task = NULL;
 
     while (scheduler->task_count > 0) {
         for (int i = 0; i < MAX_TASKS; i++) {
+            current_task_slot = &scheduler->task_list[i];
+            current_task = *current_task_slot;
             // Skip to next if no task in slot
-            if (scheduler->task_list[i] == NULL) { continue; }
+            if (current_task == NULL) {
+                continue;
+            }
 
-            // Get function and state
-            mj_task* t = scheduler->task_list[i];
-            mj_task_fn* task = t->task;
-            void* state = t->state;
+            // Skip if task has no run function
+            if (current_task->run == NULL) {
+                continue;
+            }
 
-            // Keep track of what function is running
-            scheduler->current_task = &scheduler->task_list[i];
+            scheduler->current_task = current_task_slot; // Note: double pointers
 
-            // Call user function with user state
-            task(scheduler, state);
+            // Call tasks run function with its context
+            current_task->run(scheduler, current_task->ctx);
 
-            // Reset current function since it should only be availible from the task that just ran
+            // Reset current function since it should only be available from the task that just ran
             scheduler->current_task = NULL;
         }
     }
@@ -56,33 +56,24 @@ mj_scheduler* mj_scheduler_create(void) {
         return NULL;
     }
 
-    // Init all fields
     scheduler->current_task = NULL;
     scheduler->task_count = 0;
 
-    // TODO if we stick with fixed array preallocate all slots here during init
     return scheduler;
 }
 
-int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state) {
-    if (scheduler == NULL || task == NULL) {
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task* new_task) {
+    if (scheduler == NULL || new_task == NULL) {
         errno = EINVAL;
         return -1;
     }
-    // Scheduler is full
+    // if scheduler is full
     if (scheduler->task_count >= MAX_TASKS) {
         errno = ENOMEM;
         return -1;
     }
-    // Create the new task
-    mj_task* new_task = malloc(sizeof(*new_task));
-    if (!new_task) {
-        errno = ENOMEM;
-        return -1;
-    }
-    new_task->task = task;
-    new_task->state = state;
-    // Add task in empty spot in task_list[] (must loop entire array since list will be fragmented, implement min-heap to fix)
+
+    // Add task to first empty slot in task_list[]
     for (int i = 0; i < MAX_TASKS; i++) {
         if (scheduler->task_list[i] == NULL) {
             scheduler->task_list[i] = new_task;
@@ -91,28 +82,32 @@ int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task, void* state
         }
     }
     // Should never happen
-    free(new_task);
     errno = ENOMEM;
     return -1;
 }
 
+// Calls the tasks cleanup function and then it frees the task
 int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     if (scheduler == NULL || scheduler->current_task == NULL || *scheduler->current_task == NULL) {
         errno = EINVAL;
         return -1;
     }
 
+    // helper stack alias for shorter code
     mj_task* task = *scheduler->current_task;
 
-    // Free state first (the state comes from the callbacks instance,
-    // this is OK since the instance scope is lost after task is done)
-    if (task->state) {
-        free(task->state);
-        task->state = NULL;
+    // use custom cleanup for any internal data if availible
+    if (task->cleanup && task->ctx) {
+        task->cleanup(scheduler, task->ctx);
     }
 
-    // Free the task struct itself
+    // Free the tasks context
+    free(task->ctx);
+    task->ctx = NULL;
+
+    // Free the task itself
     free(task);
+    task = NULL;
 
     // Clear the slot in scheduler->task_list
     *scheduler->current_task = NULL;
@@ -121,7 +116,8 @@ int mj_scheduler_task_remove_current(mj_scheduler* scheduler) {
     scheduler->current_task = NULL;
 
     // Decrement task count
-    if (scheduler->task_count > 0) scheduler->task_count--;
+    if (scheduler->task_count > 0)
+        scheduler->task_count--;
 
     return 0;
 }
@@ -132,7 +128,7 @@ int mj_scheduler_destroy(mj_scheduler** scheduler) {
         return -1;
     }
 
-    // Don't destroy if tasks are left
+    // Don't cleanup if tasks are left
     if ((*scheduler)->task_count > 0) {
         errno = EBUSY; // resource busy
         return 1;
