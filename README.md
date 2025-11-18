@@ -1,150 +1,142 @@
 # Majjen
 
-**(readme out of date, will be updated soon. Check demo_task.c and .h for now)**
+Majjen is a tiny round‑robin cooperative scheduler written in C99.
 
-A tiny cooperative scheduler in C99. It lets you register simple task callbacks with user-provided state and runs them in a round‑robin loop until each task removes itself.
+It lets you register small tasks that perform a bit of work and then voluntarily remove themselves from the scheduler.
+
+It’s designed for well‑behaved, non‑blocking state machines and simple one‑shot tasks, where each task runs quickly and never blocks — but you’re free to put any logic you want in a task’s `run` function, as long as it doesn’t block for too long.
 
 ## Features
-- Cooperative, single-threaded scheduler
-- Simple task API: function + opaque state pointer
-- Fixed maximum number of tasks (`MAX_TASKS`)
-- Round‑robin execution until all tasks complete
-- Clear ownership: scheduler frees each task’s state when the task exits itself
 
-## Usage
-- Create a scheduler with `mj_scheduler_create()`.
-- Add tasks with `mj_scheduler_task_add(s, cb, state)`.
-- Start the loop with `mj_scheduler_run(s)`; it iterates over task slots and calls each callback with its associated state.
-- When a task is done, it must call `mj_scheduler_task_remove_current(s)`. That function frees the task’s state and the task record, clears the slot, and decrements `task_count`.
-- When no tasks remain, `mj_scheduler_run` returns.
-- Destroy the scheduler with `mj_scheduler_destroy(&s)`.
+- Single-threaded, cooperative scheduler
+- Simple task abstraction (`mj_task`) with callbacks and user-defined context
+- Fixed-size task array (`MAX_TASKS`)
+- Clear ownership model: scheduler owns tasks and their context once added
 
-## Public API 
+## How it works
+
+The scheduler core lives in `src/libs/majjen.c` / `src/libs/majjen.h`.
+
+Tasks are represented by the `mj_task` struct:
 
 ```c
-#define MAX_TASKS 1000
+typedef struct mj_scheduler mj_scheduler;
 
-typedef struct mj_task mj_task;          // opaque
-typedef struct mj_scheduler mj_scheduler; // opaque
+typedef void (*mj_task_fn)(mj_scheduler* scheduler, void* ctx);
 
-typedef void (mj_task_fn)(mj_scheduler* scheduler, void* state);
+typedef struct mj_task {
+    mj_task_fn create;   // optional: called once when added (unused in demo)
+    mj_task_fn run;      // required: called repeatedly while the task is alive
+    mj_task_fn cleanup;  // optional: called when the task is removed
+    void* ctx;           // opaque task state
+} mj_task;
+```
 
-// Lifecycle
+The main API looks like this:
+
+```c
+// Scheduler lifecycle
 mj_scheduler* mj_scheduler_create(void);
 int mj_scheduler_destroy(mj_scheduler** scheduler); // sets *scheduler = NULL on success
 
-// Run (blocks until all tasks finished)
-int mj_scheduler_run(mj_scheduler* scheduler); // returns 0 when all tasks are done
+// Run loop (blocks until all tasks have finished and removed themselves)
+int mj_scheduler_run(mj_scheduler* scheduler);
 
 // Task management
-int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task_fn* task_fn, void* user_state);
-int mj_scheduler_task_remove_current(mj_scheduler* scheduler); // only valid from inside a task
+int mj_scheduler_task_add(mj_scheduler* scheduler, mj_task* task);  // takes ownership of `task`
+int mj_scheduler_task_remove_current(mj_scheduler* scheduler);      // only valid from inside a task
 ```
 
-Return values follow simple conventions: `-1` on invalid arguments or out‑of‑capacity conditions (with `errno` set), `0` on success. Destroy returns `1` with `errno=EBUSY` if tasks are still present.
+Internally, the scheduler keeps a fixed-size array of `mj_task*` of length `MAX_TASKS` and cycles through it in a simple round-robin loop, calling each task’s `run` callback while there are tasks left.
 
-## Example
-A simple counter task that removes itself at 10:
+---
+
+## Demo program
+
+The demo code lives in `src/demo_task.c`, `src/demo_task.h`, and `src/main.c`.
+
+The demo task counts from 1 up to a configured value and then removes itself from the scheduler.
+
+### Demo task
+
+`src/demo_task.h` defines the per-task context and a helper to create a counting task:
 
 ```c
-// Callback: increments until reaching 10, then removes itself
-void mj_cb_count_to_ten(mj_scheduler* scheduler, void* user_state) {
-    int* task_state = (int*)user_state;
-    if (*task_state >= 10) {
-        mj_scheduler_task_remove_current(scheduler);
-        return;
-    }
-    (*task_state)++;
-}
+typedef struct demo_task_ctx {
+    int count_to;        // When to stop counting
+    int count;           // Current value
+    void* unused_heap_ptr; // Placeholder for extra resources
+} demo_task_ctx;
 
-// Helper to allocate and add the task
-void mj_add_task_count_up(mj_scheduler* scheduler, int start) {
-    int* state = malloc(sizeof(*state));
-    *state = start;
-    mj_scheduler_task_add(scheduler, mj_cb_count_to_ten, state);
-}
+mj_task* demo_task_counter_create_task(int count_to);
+```
 
+`src/demo_task.c` implements `demo_task_counter_create_task` and the task’s `run` function. The `run` function:
+
+- Increments the counter on each call
+- Prints `"Counting to N (current)"`
+- When `count >= count_to`, prints a final message and calls `mj_scheduler_task_remove_current(scheduler)`
+- Sleeps for 250 ms between iterations using a small helper `sleep_ms(250)`
+
+### Main
+
+`src/main.c` wires everything together:
+
+```c
 int main(void) {
     mj_scheduler* scheduler = mj_scheduler_create();
-    mj_add_task_count_up(scheduler, 5);
-    mj_scheduler_run(scheduler);
-    mj_scheduler_destroy(&scheduler);
+
+    // Create a task with your own helper function and add it to the scheduler
+    mj_scheduler_task_add(scheduler, demo_task_counter_create_task(2));
+
+    mj_scheduler_run(scheduler);      // blocks until all tasks are done
+    mj_scheduler_destroy(&scheduler); // frees scheduler and sets pointer to NULL
+
     return 0;
 }
 ```
-Note: this example is just an illustration and does not check for errors.
 
-## Ownership & safety
-- Allocate task state on the heap (e.g., `malloc`). The scheduler will `free()` it when the task removes itself via `mj_scheduler_task_remove_current`.
-- Do not pass pointers to stack variables as state.
-- Do not keep aliases to the state outside the scheduler. After the task completes, the scheduler frees the state; any external alias becomes dangling.
+Running this program will interleave the output from all three tasks as the scheduler cycles through its task list.
 
-Minimal anti-pattern example (use‑after‑free):
+---
+
+## Ownership and memory model
+
+- You allocate `mj_task` instances (and their `ctx`) on the heap.
+- After calling `mj_scheduler_task_add`, the scheduler owns that `mj_task` and its `ctx`.
+- When a task is finished, it must call `mj_scheduler_task_remove_current(scheduler)` from inside its `run` function. That function:
+  - Calls the task’s `cleanup` callback if it is non-`NULL`.
+  - Frees `task->ctx`.
+  - Frees the `mj_task` itself.
+  - Clears the task’s slot in the scheduler’s array and decrements the internal task count.
+- Do not keep external pointers to a task’s `ctx` after the task has removed itself; they will be dangling.
+
+The demo code in `src/demo_task.c` is a good reference for how to structure your own tasks to fit this model.
+
+---
+
+## Utilities
+
+### `sleep_ms`
+
+`src/utils/sleep_ms.h` provides a small helper:
+
 ```c
-int* add_task_and_leak_pointer(mj_scheduler* s) {
-    int* state = malloc(sizeof(*state));
-    *state = 99;
-    mj_scheduler_task_add(s, mj_cb_count_to_ten, state);
-    return state; // escaping pointer; do NOT use afterward
-}
-
-void demo(void) {
-    mj_scheduler* s = mj_scheduler_create();
-    int* leaked = add_task_and_leak_pointer(s);
-    mj_scheduler_run(s);             // task will free 'state' on completion
-    mj_scheduler_destroy(&s);
-    printf("%d\n", *leaked);        // DANGEROUS: leaked is now dangling
-}
+static inline void sleep_ms(unsigned int ms);
 ```
 
-## Build & run
-The repo includes a Makefile that builds a single binary named `app`.
+It uses `nanosleep` to sleep for a given number of milliseconds, correctly handling `EINTR` by resuming the remaining sleep.
 
-```bash
-make        # builds ./app
-make run    # runs ./app
-make clean  # cleans build/ and app
-```
+### `clock_timer`
 
-## Dependencies & Platform Support
+`src/utils/timer.h` / `timer.c` implement a simple monotonic timer utility (`clock_timer_t`) with helpers to measure elapsed time in ns/µs/ms/s and format it as a string. This is useful for benchmarking or experimenting with timing but is not required to use the scheduler.
 
-Majjen uses only the C standard library plus POSIX headers (`unistd.h`, potentially `time.h` with POSIX feature macros). The current code defines `_POSIX_C_SOURCE=200809L` via `CFLAGS` in the `Makefile`.
+---
 
-| Requirement            | Notes |
-|------------------------|-------|
-| C99 compiler           | Tested with GCC (should also work with Clang). |
-| POSIX environment      | Relies on `_POSIX_C_SOURCE` features (e.g. `nanosleep` if added later). |
-| Operating system       | Developed & tested on Linux. Should compile on other POSIX-like systems (e.g. BSD, macOS) since no Linux-specific syscalls are used yet. |
-| Standard library only  | No external third-party dependencies. |
+## Requirements
 
-### Portability
-Right now: the implementation is purely cooperative with no platform-specific I/O or timers, so porting should be straightforward wherever a C99 + POSIX environment exists. 
+- C99-compatible compiler (`gcc` or `clang`)
+- POSIX-like system (developed and tested on Linux)
+- Standard C library and POSIX time functions (`time.h`, `nanosleep`, `clock_gettime`)
 
-### Minimal build check (Linux)
-If you have GCC installed, the provided `Makefile` should work out of the box:
-
-```bash
-make
-./app
-```
-
-If using Clang:
-
-```bash
-CC=clang make
-```
-
-On macOS/BSD you may remove or adapt any future Linux-specific code once added (none present yet).
-
-Tested on Linux with GCC and `-std=c99`.
-
-## Limitations (current state)
-- No timers/yield API; tasks run full-speed round‑robin until they finish.
-- Fixed capacity `MAX_TASKS` array; adding beyond capacity fails with `errno=ENOMEM`.
-- Single-threaded cooperative model; no preemption.
-
-## Roadmap 
-- Sleep/yield primitives and a timer wheel/min-heap for wakeups
-- Pluggable wait function for idle efficiency (e.g., nanosleep/epoll)
-- Logging and basic metrics
-- Dynamic task storage structure (free list or vector) instead of fixed slots
+No third-party libraries are required.
